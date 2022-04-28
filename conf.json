@@ -1,6 +1,6 @@
 {
     "linkMongoDb": "mongodb+srv://Muxvid:nIzD8AirUJ3EKaYf@cluster0.49cfk.mongodb.net/myFirstDatabase?retryWrites=true&w=majority",
-    "folderTarget": "Muxvid:",
+    "folderTarget": "/content/drive/Shareddrives/M2D/Military Prosecutor Doberman (2022) - Updating...",
     "dbName": "Mux",
     "vidType": "mp4, mkv, mov, avi",
     "subType": "srt, vtt, ssa, ass"
