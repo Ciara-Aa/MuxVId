@@ -1,3 +1,6 @@
+#@title 3.MUX
+#@markdown If muxToCloud is blank, mux video destination will same as source video
+from fileinput import filename
 import pymongo
 import subprocess
 import checkoutDb
@@ -5,11 +8,11 @@ import os
 import re
 import json
 import shutil
-from RewriteSrt import rewrote
+import RewriteSrt
 destMux=""
 subLang="en"
 postfix="mux"
-rewroteSrt = True #@param {type:"boolean"}
+
 class mongoUtil:
     #init
     def __init__(self):
@@ -35,7 +38,10 @@ def returnParentDir(filePath):
         return None
     else:
         return '/'.join(listElementInFile[:-1])
-
+def escape(line):
+    if re.search(r"[^\\]`",line) :
+        return escape(re.sub("`", "\`", line))
+    return line
 def mux(collection, limit=0):
     values=collection.find({'destDir': {"$eq": ""}, 'sub': {"$ne": []}}, {'_id': 1,'destDir':1, 'sourceDir':1, 'sub':1 }).limit(limit)
     print(collection)
@@ -59,7 +65,7 @@ def mux(collection, limit=0):
             #subprocess.call(cmdDownloadSub)
             sub=sub["subtitle"]
             print(sub)                                    
-            os.system(f"rclone -v -P --stats-one-line --stats 5s copy \"{sub}\" \"./toMux/\" --ignore-existing") #2
+            !rclone -v -P --stats-one-line --stats 5s copy "$sub" "./toMux/" --ignore-existing #2
             sub=os.path.basename(sub)
             subs.append(sub) 
         print(f"sub: {os.path.basename(subs[0])}")
@@ -85,8 +91,10 @@ def mux(collection, limit=0):
             subName=os.path.basename(subs[countSub])
                 
             try:
-              os.system(f"mkvmerge --output \"./toMux/{destMux}\" --sync \"0:{delay}\" \"./toMux/{fileName}\" --language \
-                   \"0:{subLang}\" --track-name \"0:{subLang}\" \"./toMux/{subName}\"")
+              tempDestMux=escape(destMux)
+              tempFileName=escape(fileName)
+              tempSubName=escape(subName)
+              !mkvmerge --output "./toMux/$tempDestMux" --sync "0:$delay" "./toMux/$tempFileName" --language "0:$subLang" --track-name "0:$subLang" "./toMux/$tempSubName"
             except:
               pass
             try:
@@ -94,10 +102,9 @@ def mux(collection, limit=0):
                 subExtwithDot=os.path.splitext(os.path.basename(subName))[1]
                 if subExtwithDot == ".srt" or subExtwithDot == ".vtt":
                   try:
-                    rewrote(f"./toMux/{subName}")
+                    rewrotesub.rewrote(f"./toMux/{subName}")
                     print("##################Success rewrite########################")
-                    os.system(f"mkvmerge --output \"./toMux/{destMux}\" --sync \"0:{delay}\" \"./toMux/{fileName}\" \
-                    --language \"0:{subLang}\" --track-name \"0:{subLang}\" \"./toMux/{subName}\"")
+                    !mkvmerge --output "./toMux/$tempDestMux" --sync "0:$delay" "./toMux/$tempFileName" --language "0:$subLang" --track-name "0:$subLang" "./toMux/$tempSubName"
 
                   except:
                     print("##################Failed to rewrote sub file########################") 
@@ -115,16 +122,19 @@ def mux(collection, limit=0):
         if os.path.exists(f"./toMux/{destMux}")==True:
               Copy=True
         if(Copy):
-          muxToCloud=returnParentDir(doc["sourceDir"])
-          os.system(f"rclone copy \"./toMux/{destMux}\" \"{muxToCloud}\" --ignore-existing")
-          collection.update_one( {'_id': doc['_id']}, {'$set': {'destDir': f'{muxToCloud}'}} )
+          muxToCloud = "" #@param {type:"string"}
+          if muxToCloud=="":
+            muxToCloud=returnParentDir(doc["sourceDir"])
+          tempMuxToCloud=escape(muxToCloud)
+          !rclone copy "./toMux/$tempDestMux" "$tempMuxToCloud/" --ignore-existing
+          collection.update_one( {'_id': doc['_id']}, {'$set': {'destDir': f'{muxToCloud}/{destMux}'}} )
         else:
           print("Can't find file\n####################FAILED MUXED########################################")
           continue
         print("Sucess mux")
-        deleteEveryVid = False #@param {type:"boolean"}
+        deleteEveryVid = True #@param {type:"boolean"}
         if deleteEveryVid==True:
-          os.system("rm -r \"./toMux/*\"")
+          !rm -r "./toMux/*"
 with open('conf.json') as json_file:
     data = json.load(json_file)
     client = pymongo.MongoClient(data['linkMongoDb'])
